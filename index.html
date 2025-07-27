@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tymble</title>
+  <style>
+    body {
+      font-family: cursive;
+      text-align: center;
+      transition: background-color 0.3s, color 0.3s;
+    }
+
+    body.light-mode {
+      background-color: #FAF8F6;
+      color: #3F3D56;
+    }
+    body.light-mode .day {
+      background-color: #FFFFFF;
+      color: #3F3D56;
+      box-shadow: 0 2px 8px rgba(164, 148, 224, 0.3);
+    }
+    body.light-mode .completed {
+      color: #B8E1DD;
+    }
+    body.light-mode .pending {
+      color: #F4A7B9;
+    }
+    body.light-mode input,
+    body.light-mode select,
+    body.light-mode button {
+      border: 1px solid #EAE6F8;
+      background-color: #FFFFFF;
+      color: #3F3D56;
+    }
+
+    body.dark-mode {
+      background-color: #1A1A2E;
+      color: #F8F8F8;
+    }
+    body.dark-mode .day {
+      background-color: #2C2C54;
+      color: #F8F8F8;
+      box-shadow: 0 2px 8px rgba(159, 134, 192, 0.3);
+    }
+    body.dark-mode .completed {
+      color: #6BCB77;
+    }
+    body.dark-mode .pending {
+      color: #F67280;
+    }
+    body.dark-mode input,
+    body.dark-mode select,
+    body.dark-mode button {
+      border: 1px solid #202034;
+      background-color: #2C2C54;
+      color: #F8F8F8;
+    }
+
+    h1 {
+      margin-top: 20px;
+    }
+    select {
+      margin-bottom: 20px;
+      padding: 5px;
+    }
+    .week {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 30px;
+      padding: 0 20px;
+      justify-items: center;
+    }
+    .day {
+      border-radius: 10px;
+      padding: 15px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .sunday-wrapper {
+      grid-column: 2 / 3;
+    }
+    .today-centered {
+      margin: 40px auto;
+      width: 60%;
+      min-height: 400px;
+    }
+    input, select, button {
+      margin: 5px;
+      padding: 6px;
+      border-radius: 4px;
+    }
+    button {
+      background-color: #A593E0;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    .task {
+      text-align: left;
+      margin-top: 10px;
+    }
+    .actions button {
+      background-color: #A593E0;
+      margin-left: 5px;
+    }
+    .delete-btn {
+      background-color: #F67280;
+    }
+
+    .logo {
+      height: 60px;
+      margin-top: 10px;
+    }
+    .logo-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 15px;
+      margin-bottom: 10px;
+    }
+
+    #liveClock {
+      font-size: 16px;
+      margin-bottom: 20px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body class="light-mode">
+  <div class="logo-container">
+    <img src="assets/logos/logo-light.png" id="logo" alt="Tymble Logo" class="logo" />
+    <h1>Tymble</h1>
+  </div>
+  <div id="liveClock"></div>
+
+  <button onclick="toggleTheme()" id="themeToggle">🌙 Dark Mode</button>
+  <select id="viewMode" onchange="toggleView()">
+    <option value="weekly">Weekly Planner</option>
+    <option value="daily">Daily Planner</option>
+  </select>
+  <h2 id="plannerTitle">Weekly To-Do List</h2>
+  <div id="planner"></div>
+
+  <script>
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const planner = document.getElementById('planner');
+    const tasksByDay = {};
+
+    function toggleTheme() {
+      const body = document.body;
+      const button = document.getElementById('themeToggle');
+      const logo = document.getElementById('logo');
+      const dark = body.classList.toggle('dark-mode');
+      body.classList.toggle('light-mode', !dark);
+      button.innerText = dark ? '☀️ Light Mode' : '🌙 Dark Mode';
+      logo.src = dark ? 'assets/logos/logo-dark.png' : 'assets/logos/logo-light.png';
+    }
+
+    function createDayCard(day, view) {
+      const div = document.createElement('div');
+      div.className = 'day';
+      if (view === 'weekly' && day === 'Sunday') div.classList.add('sunday-wrapper');
+      if (view === 'daily') div.classList.add('today-centered');
+      div.dataset.day = day;
+
+      div.innerHTML = `
+        <h3>${day}</h3>
+        <input type="text" placeholder="Add task..." class="task-name">
+        <input type="time" class="task-time">
+        <select class="task-priority">
+          <option>Low</option>
+          <option>Medium</option>
+          <option>High</option>
+        </select>
+        <button onclick="addTask(this, '${day}')">Add</button>
+        <div class="task-list"></div>
+      `;
+
+      if (!tasksByDay[day]) tasksByDay[day] = [];
+
+      const taskList = div.querySelector('.task-list');
+      tasksByDay[day].forEach(task => {
+        taskList.appendChild(buildTaskElement(task.name, task.time, task.priority, task.completed, day));
+      });
+
+      return div;
+    }
+
+    function renderPlanner(view = 'weekly') {
+      planner.innerHTML = '';
+      planner.className = view === 'weekly' ? 'week' : '';
+      if (view === 'weekly') {
+        days.forEach(day => planner.appendChild(createDayCard(day, view)));
+      } else {
+        const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+        planner.appendChild(createDayCard(today, view));
+      }
+    }
+
+    function toggleView() {
+      const view = document.getElementById('viewMode').value;
+      document.getElementById('plannerTitle').innerText =
+        view === 'weekly' ? 'Weekly To-Do List' : 'Today\'s Tasks';
+      renderPlanner(view);
+    }
+
+    function addTask(button, day) {
+      const card = button.parentElement;
+      const name = card.querySelector('.task-name').value;
+      const time = card.querySelector('.task-time').value;
+      const priority = card.querySelector('.task-priority').value;
+      if (!name) return;
+
+      if (!tasksByDay[day]) tasksByDay[day] = [];
+
+      const conflict = tasksByDay[day].find(task => task.time === time);
+      if (conflict) {
+        alert(`⚠️ Conflict: Task "${conflict.name}" already scheduled at ${time}.`);
+        return;
+      }
+
+      const newTask = { name, time, priority, completed: false };
+      tasksByDay[day].push(newTask);
+
+      updateAllViews(day);
+
+      card.querySelector('.task-name').value = '';
+      card.querySelector('.task-time').value = '';
+      card.querySelector('.task-priority').value = 'Low';
+    }
+
+    function buildTaskElement(name, time, priority, completed = false, day = '') {
+      const taskDiv = document.createElement('div');
+      taskDiv.className = 'task';
+      taskDiv.innerHTML = `
+        <label>
+          <input type="checkbox" onchange="toggleComplete(this, '${day}')" ${completed ? 'checked' : ''}>
+          <strong>${name}</strong> <span class="info">(${time || '--:--'}, ${priority})</span>
+        </label>
+        <div class="${completed ? 'completed' : 'pending'}">${completed ? '🎉 Woohoo! Task completed. Great job!' : '🥺 Still pending. Keep going!'}</div>
+        <div class="actions">
+          <button onclick="editTask(this)">✏️</button>
+          <button class="delete-btn" onclick="deleteTask(this)">🗑️</button>
+        </div>
+      `;
+      return taskDiv;
+    }
+
+    function toggleComplete(checkbox, day) {
+      const task = checkbox.closest('.task');
+      const message = task.querySelector('div');
+      const name = task.querySelector('strong').innerText;
+
+      const checked = checkbox.checked;
+      message.className = checked ? 'completed' : 'pending';
+      message.textContent = checked ? '🎉 Woohoo! Task completed. Great job!' : '🥺 Still pending. Keep going!';
+
+      if (day && tasksByDay[day]) {
+        tasksByDay[day].forEach(t => {
+          if (t.name === name) t.completed = checked;
+        });
+        updateAllViews(day);
+      }
+    }
+
+    function deleteTask(btn) {
+      const task = btn.closest('.task');
+      const name = task.querySelector('strong').innerText;
+      const parent = task.closest('[data-day]');
+      const day = parent.dataset.day;
+
+      tasksByDay[day] = tasksByDay[day].filter(t => t.name !== name);
+      updateAllViews(day);
+    }
+
+    function editTask(btn) {
+      const task = btn.closest('.task');
+      const label = task.querySelector('label');
+      const info = label.querySelector('.info');
+      const name = label.querySelector('strong').innerText;
+      const [time, priority] = info.innerText.replace(/[()]/g, '').split(', ');
+
+      task.innerHTML = `
+        <input type="text" value="${name}" class="task-name">
+        <input type="time" value="${time}" class="task-time">
+        <select class="task-priority">
+          <option${priority === 'Low' ? ' selected' : ''}>Low</option>
+          <option${priority === 'Medium' ? ' selected' : ''}>Medium</option>
+          <option${priority === 'High' ? ' selected' : ''}>High</option>
+        </select>
+        <button onclick="saveTask(this, '${name}')">💾 Save</button>
+        <button class="delete-btn" onclick="deleteTask(this)">🗑️</button>
+      `;
+    }
+
+    function saveTask(btn, oldName) {
+      const task = btn.closest('.task');
+      const name = task.querySelector('.task-name').value;
+      const time = task.querySelector('.task-time').value;
+      const priority = task.querySelector('.task-priority').value;
+      const parent = task.closest('[data-day]');
+      const day = parent.dataset.day;
+
+      const taskList = tasksByDay[day];
+      const t = taskList.find(t => t.name === oldName);
+      if (t) {
+        t.name = name;
+        t.time = time;
+        t.priority = priority;
+      }
+
+      updateAllViews(day);
+    }
+
+    function updateAllViews(day) {
+      const currentView = document.getElementById('viewMode').value;
+      renderPlanner(currentView);
+    }
+
+    function updateClock() {
+      const now = new Date();
+      const options = {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      };
+      const formatted = now.toLocaleDateString('en-US', options);
+      document.getElementById('liveClock').innerText = formatted;
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    renderPlanner();
+  </script>
+</body>
+</html>
